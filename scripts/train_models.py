@@ -4,8 +4,25 @@ import pickle
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 
+import hmac
+import hashlib
+import secrets
+
 MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+def get_hmac_key():
+    key_path = ".gap_key"
+    if not os.path.exists(key_path):
+        print(f"[*] Generating new cryptographic HMAC key at {key_path}...")
+        key = secrets.token_bytes(32)
+        with open(key_path, 'wb') as f:
+            f.write(key)
+        os.chmod(key_path, 0o600)
+    else:
+        with open(key_path, 'rb') as f:
+            key = f.read()
+    return key
 
 def preprocess_data(csv_path):
     print(f"[*] Loading dataset from {csv_path}...")
@@ -29,6 +46,7 @@ def preprocess_data(csv_path):
 
 def train_node_models(df_pivot):
     nodes = df_pivot['node'].unique()
+    secret_key = get_hmac_key()
     
     for node in nodes:
         print(f"\n[*] Training anomaly model for node: [{node}]...")
@@ -59,10 +77,20 @@ def train_node_models(df_pivot):
             "feature_cols": feature_cols
         }
         
+        # Serialize model payload and compute signature
+        serialized_payload = pickle.dumps(model_payload)
+        signature = hmac.new(secret_key, serialized_payload, hashlib.sha256).hexdigest()
+        
+        # Create signed wrapper
+        signed_wrapper = {
+            "signature": signature,
+            "data": serialized_payload
+        }
+        
         model_path = os.path.join(MODEL_DIR, f"{node}_iso_forest.pkl")
         with open(model_path, 'wb') as f:
-            pickle.dump(model_payload, f)
-        print(f"[+] Successfully saved model to {model_path}")
+            pickle.dump(signed_wrapper, f)
+        print(f"[+] Successfully saved model to {model_path} (HMAC-SHA256 signed)")
 
 def main():
     telemetry_csv = "network_telemetry.csv"

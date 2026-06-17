@@ -14,6 +14,9 @@ clab/clab-*/
 venv/
 .venv/
 
+# Agent Files
+.agent/
+
 # Python cache files
 __pycache__/
 *.pyc
@@ -26,3 +29,6 @@ chroma_db/
 
 # Internal Documentation
 documentation/
+
+# Cryptographic key
+.gap_key

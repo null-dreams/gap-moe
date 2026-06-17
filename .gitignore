@@ -15,7 +15,7 @@ venv/
 .venv/
 
 # Agent Files
-.agent/
+.agents/
 
 # Python cache files
 __pycache__/

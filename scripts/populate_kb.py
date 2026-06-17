@@ -30,8 +30,8 @@ class OllamaEmbeddingFunction(EmbeddingFunction):
                     raise Exception(f"Ollama returned status code {response.status_code}")
             except Exception as e:
                 print(f"[-] Failed to generate local embedding: {e}")
-                # Fallback to zero-vector to prevent crash during offline demo
-                embeddings.append([0.0] * 768) 
+                # Fail fast to prevent silent database corruption with zero-vectors
+                raise e
         return embeddings
 
 def main():
@@ -48,6 +48,8 @@ def main():
     if not os.path.exists(KB_DIR):
         print(f"[-] Knowledge base directory '{KB_DIR}' not found.")
         return
+        
+    abs_kb_dir = os.path.realpath(KB_DIR)
 
     print("[*] Reading local markdown playbooks...")
     documents = []
@@ -57,7 +59,14 @@ def main():
     for idx, filename in enumerate(os.listdir(KB_DIR)):
         if filename.endswith(".md"):
             filepath = os.path.join(KB_DIR, filename)
-            with open(filepath, "r", encoding="utf-8") as f:
+            real_filepath = os.path.realpath(filepath)
+            
+            # Verify the resolved path is strictly within the KB directory
+            if os.path.commonpath([abs_kb_dir]) != os.path.commonpath([abs_kb_dir, real_filepath]):
+                print(f"[-] Security Warning: Skipping file path outside of authorized directory: {filepath}")
+                continue
+                
+            with open(real_filepath, "r", encoding="utf-8") as f:
                 content = f.read()
                 
             documents.append(content)

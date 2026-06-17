@@ -7,11 +7,21 @@ import pickle
 import requests
 import numpy as np
 import pandas as pd
+import hmac
+import hashlib
 
 PROM_URL = "http://localhost:9090/api/v1/query"
 MODEL_DIR = "models"
 ALERT_DIR = "alerts"
 os.makedirs(ALERT_DIR, exist_ok=True)
+
+def get_hmac_key():
+    key_path = ".gap_key"
+    if not os.path.exists(key_path):
+        print(f"[-] Integrity Error: Cryptographic HMAC key file '{key_path}' not found. Please train models first.")
+        sys.exit(1)
+    with open(key_path, 'rb') as f:
+        return f.read()
 
 # Scrape the last 60 seconds of telemetry from Prometheus to evaluate trends
 QUERIES = {
@@ -32,11 +42,30 @@ def load_models():
     if not os.path.exists(MODEL_DIR):
         print(f"[-] Models directory {MODEL_DIR} not found. Run train_models.py first.")
         sys.exit(1)
+        
+    secret_key = get_hmac_key()
+    
     for file in os.listdir(MODEL_DIR):
         if file.endswith("_iso_forest.pkl"):
             node = file.replace("_iso_forest.pkl", "")
-            with open(os.path.join(MODEL_DIR, file), 'rb') as f:
-                models[node] = pickle.load(f)
+            filepath = os.path.join(MODEL_DIR, file)
+            with open(filepath, 'rb') as f:
+                wrapper = pickle.load(f)
+                
+            if not isinstance(wrapper, dict) or "signature" not in wrapper or "data" not in wrapper:
+                print(f"[-] Security Error: Model file {file} is not signed or is corrupted. Aborting.")
+                sys.exit(1)
+                
+            signature = wrapper["signature"]
+            data = wrapper["data"]
+            
+            # Recalculate HMAC
+            expected = hmac.new(secret_key, data, hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(signature, expected):
+                print(f"[-] Security Integrity Error: Model file {file} HMAC signature mismatch! The model may have been tampered with. Aborting.")
+                sys.exit(1)
+                
+            models[node] = pickle.loads(data)
     return models
 
 def query_prometheus_range(query):

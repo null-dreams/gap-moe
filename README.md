@@ -1,4 +1,4 @@
-# gap-moe
+# Gap Moe
 
 *Air-Gapped Predictive Network Operations Center (NOC) Copilot*
 
@@ -76,14 +76,15 @@ sequenceDiagram
 
 ---
 
-## Current Progress (v1.1)
+## Current Progress (v1.2)
 
 - **Network Topology & Convergence [100%]**: Fully verified Containerlab OSPF topology. Static configuration templates, vtysh warning suppression, and dynamic neighbor adjacencies are operational.
 - **Telemetry Integration [100%]**: Docker Compose telemetry services (cAdvisor and Prometheus) are configured with correct capability privileges to capture metrics and resolve OOM event tracking errors.
 - **Predictive Engine [100%]**: Functional pipeline for telemetry export (`network_telemetry.csv`), machine learning model training, and continuous real-time forecasting.
 - **RAG Knowledge Base [100%]**: ChromaDB vector storage populated with OSPF topology maps and Standard Operating Procedures (SOPs).
 - **Copilot Orchestration [100%]**: LLM-guided agent successfully integrates local alert payloads with ChromaDB runbook retrievals to output precise troubleshooting command recommendations.
-- **Security Hardening [100%]**: Implemented cryptographic model integrity checks (HMAC-SHA256), strict symlink/path traversal verification guards (`os.path.realpath`) in `populate_kb.py`, and XML-delimited prompt injection isolation constraints in `copilot_orchestrator.py`.
+- **Interactive Dashboard & NOC Chaos Panel [100%]**: Fully deployed Streamlit dashboard with metric scaling, unit harmonization, full LLM context matching, and a master chaos injector reset toggle.
+- **Security Hardening [100%]**: Implemented cryptographic model integrity checks (HMAC-SHA256), strict symlink/path traversal verification guards (`os.path.realpath`) in `populate_kb.py`, and XML-delimited prompt injection isolation constraints in `copilot_orchestrator.py` & `dashboard.py`.
 
 ---
 
@@ -112,6 +113,7 @@ Clone the repository and install Python dependencies:
 ```bash
 python3 -m venv .gap
 source .gap/bin/activate
+# Make sure to install dependencies from requirements.txt
 pip install -r requirements.txt
 ```
 
@@ -161,13 +163,28 @@ pip install -r requirements.txt
    ```
 
    *(Encodes and indexes the markdown files from `knowledge/` into the local ChromaDB database `chroma_db/`)*
-5. **Execute the Copilot Assistant**:
+5. **Execute the Copilot Assistant (CLI)**:
 
    ```bash
    python3 scripts/copilot_orchestrator.py
    ```
 
    *(Retrieves the latest alert, matches SOP runbooks, queries `llama3.2:3b`, and formats the mitigation action recommendations)*
+
+6. **Launch the Interactive Dashboard & NOC Chaos Panel**:
+
+   For a unified operator experience, run the Streamlit dashboard:
+
+   ```bash
+   streamlit run dashboard.py
+   ```
+
+   This serves a production-grade UI at `http://localhost:8501`, featuring:
+   - **NOC Chaos Panel (Sidebar)**: Start/Stop background traffic streams, inject network faults (congestion, flapping, latency degradation, memory leaks), toggle inference daemon, and trigger master resets.
+   - **Dynamic Telemetry Observability**: Live charts for CPU usage, memory consumption, and transmit/receive bandwidth query metrics in real-time from Prometheus.
+   - **Predictive System Warnings**: Status banners alerting operators to anomaly forecasts, severity levels, and Time-to-Impact projections.
+   - **AI Copilot Orchestration**: RAG-driven remediation plan generator integrating the custom local vector index and Ollama models (`llama3.2:3b`) with prompt-hardening and unit scaling.
+   - **Cryptographic Model Verification**: Live integrity check footer monitoring HMAC signatures on trained models.
 
 ---
 

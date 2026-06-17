@@ -1,0 +1,36 @@
+name: gap-moe
+
+topology:
+  defaults:
+    kind: linux
+    image: quay.io/frrouting/frr:9.1.0
+    binds:
+      - configs/daemons:/etc/frr/daemons
+      - configs/vtysh.conf:/etc/frr/vtysh.conf
+
+  nodes:
+    hub:
+      binds:
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/hub.conf:/etc/frr/frr.conf
+    transit:
+      binds:
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/transit.conf:/etc/frr/frr.conf
+    branch-1:
+      binds:
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/branch-1.conf:/etc/frr/frr.conf
+    branch-2:
+      binds:
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/branch-2.conf:/etc/frr/frr.conf
+
+  links:
+    - endpoints: ["hub:eth1", "transit:eth1"]
+    - endpoints: ["transit:eth2", "branch-1:eth1"]
+    - endpoints: ["transit:eth3", "branch-2:eth1"]

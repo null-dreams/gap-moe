@@ -1,0 +1,27 @@
+# Containerlab generated state
+clab/clab-*/
+
+# Logs
+*.log
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+
+# Python virtual environment
+.gap/
+venv/
+.venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Dataset and ML Outputs
+network_telemetry.csv
+models/
+alerts/
+
+# Internal Documentation
+documentation/

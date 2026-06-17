@@ -22,6 +22,7 @@ def handle_clear():
     run_docker_exec(f"clab-{LAB_NAME}-transit", "tc qdisc del dev eth3 root")
     run_docker_exec(f"clab-{LAB_NAME}-hub", "tc qdisc del dev eth1 root")
     # Kill memory leak processes
+    run_docker_exec(f"clab-{LAB_NAME}-transit", "pkill -f 'dev/urandom'")
     run_docker_exec(f"clab-{LAB_NAME}-transit", "pkill -f urandom")
     print("[+] All chaos cleared. Network operating normally.")
 

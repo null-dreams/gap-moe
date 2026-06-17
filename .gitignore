@@ -22,6 +22,7 @@ __pycache__/
 network_telemetry.csv
 models/
 alerts/
+chroma_db/
 
 # Internal Documentation
 documentation/

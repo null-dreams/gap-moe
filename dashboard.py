@@ -10,6 +10,8 @@ import requests
 import pandas as pd
 import subprocess
 # pyrefly: ignore [missing-import]
+import redis
+# pyrefly: ignore [missing-import]
 import streamlit as st
 # pyrefly: ignore [missing-import]
 import chromadb
@@ -24,6 +26,12 @@ OLLAMA_GEN_URL = "http://localhost:11434/api/generate"
 CHROMA_PATH = "chroma_db"
 MODEL_DIR = "models"
 KEY_PATH = ".gap_key"
+
+try:
+    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    redis_client.ping()
+except Exception as e:
+    st.error(f"Failed to connect to Redis: {e}")
 
 # Page Configuration
 st.set_page_config(
@@ -591,7 +599,11 @@ with st.sidebar:
         run_script(["scripts/traffic_generator.py", "stop"])
         # 3. Stop predictive engine if active
         stop_predictive_engine()
-        # 4. Clean up alert files
+        # 4. Clean up alert files & Redis state
+        try:
+            redis_client.delete("latest_alert")
+        except Exception:
+            pass
         if os.path.exists(ALERT_FILE):
             try:
                 os.remove(ALERT_FILE)
@@ -676,16 +688,15 @@ st.markdown("### 🚨 Predictive Anomaly & Warning System")
 
 # Determine active anomaly state
 active_alert = None
-if os.path.exists(ALERT_FILE):
-    try:
-        with open(ALERT_FILE, 'r') as f:
-            alert_data = json.load(f)
-        
+try:
+    alert_raw = redis_client.get("latest_alert")
+    if alert_raw:
+        alert_data = json.loads(alert_raw)
         # Verify alert age is fresh (<15s) to represent active prediction
         if time.time() - alert_data.get("timestamp", 0) < 15:
             active_alert = alert_data
-    except Exception:
-        pass
+except Exception:
+    pass
 
 # Append verification logs on every iteration/refresh if engine is active
 if engine_running:
@@ -797,7 +808,7 @@ with st.expander("🔒 System Integrity Logs (HMAC pickle signature checks)", ex
 # ----------------- AUTO REFRESH LOOP -----------------
 
 # Auto-refresh checkbox
-auto_refresh = st.sidebar.checkbox("Auto-refresh dashboard (5s)", value=True)
+auto_refresh = st.sidebar.checkbox("Auto-refresh dashboard (1s)", value=True)
 if auto_refresh:
-    time.sleep(5)
+    time.sleep(1)
     st.rerun()

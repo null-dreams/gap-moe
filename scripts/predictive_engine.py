@@ -8,12 +8,22 @@ import requests
 import numpy as np
 import pandas as pd
 import hmac
+# pyrefly: ignore [missing-import]
+import redis
 import hashlib
 
 PROM_URL = "http://localhost:9090/api/v1/query"
 MODEL_DIR = "models"
 ALERT_DIR = "alerts"
 os.makedirs(ALERT_DIR, exist_ok=True)
+
+try:
+    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    redis_client.ping()
+    print("[+] Redis connection successful.")
+except Exception as e:
+    print(f"[-] Redis connection failed: {e}")
+    sys.exit(1)
 
 def get_hmac_key():
     key_path = ".gap_key"
@@ -173,7 +183,7 @@ def main():
     print("[*] Loading trained node models...")
     models = load_models()
     print(f"[+] Loaded models for nodes: {list(models.keys())}")
-    print("[*] Starting real-time predictive loops (Polling every 5s)...")
+    print("[*] Starting real-time predictive loops (Polling every 1s)...")
     
     while True:
         try:
@@ -195,14 +205,13 @@ def main():
                                 "contributing_signals": node_data[node_data['timestamp'] == node_data['timestamp'].max()][['metric', 'interface', 'value']].to_dict(orient='records')
                             }
                             
-                            # Write alert to latest
-                            alert_path = os.path.join(ALERT_DIR, "latest_alert.json")
-                            with open(alert_path, 'w') as f:
-                                json.dump(alert, f, indent=2)
+                            # Publish alert to Redis
+                            redis_client.set("latest_alert", json.dumps(alert))
+                            redis_client.publish("alerts", json.dumps(alert))
                                 
-                            print(f"[!] ALERT: Node [{node}] has elevated risk! Severity: {severity}/100. Est. Impact in: {tti}")
+                            print(f"[!] ALERT PUBLISHED: Node [{node}] has elevated risk! Severity: {severity}/100. Est. Impact in: {tti}")
             
-            time.sleep(5)
+            time.sleep(1)
         except KeyboardInterrupt:
             print("\n[+] Inference engine closed.")
             break

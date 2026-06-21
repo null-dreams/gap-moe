@@ -23,3 +23,10 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
     restart: always
+
+  redis:
+    image: redis:latest
+    container_name: redis-queue
+    ports:
+      - "6379:6379"
+    restart: always

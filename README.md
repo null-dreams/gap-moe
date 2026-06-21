@@ -50,24 +50,26 @@ graph TD
 2. **Predictive Analytics & Forecasting**:
    - `scripts/export_telemetry.py` periodically harvests scraped Prometheus metrics.
    - `scripts/train_models.py` builds Isolation Forest models for each individual router.
-   - `scripts/predictive_engine.py` polls Prometheus, runs live anomaly inference, calculates TTI projection, and outputs active alert payloads.
+   - `scripts/predictive_engine.py` polls Prometheus, runs live anomaly inference, calculates TTI projection, and publishes live alerts to a local **Redis queue** and state database.
 3. **Offline Copilot Orchestrator (RAG)**:
    - `scripts/populate_kb.py` generates local vector representations of playbooks (`knowledge/`) and stores them in ChromaDB.
-   - `scripts/copilot_orchestrator.py` watches for predictive alerts, queries ChromaDB, compiles the context prompt, and generates operator-friendly mitigation guides.
+   - `scripts/copilot_orchestrator.py` runs as a daemon subscribing to the Redis alert channel (or can be run manually), querying ChromaDB for relevant SOP playbooks and compiling context prompts for LLM remediation.
 
 ```mermaid
 sequenceDiagram
     participant NetLab as Containerlab OSPF Nodes
     participant Prom as Prometheus (cAdvisor)
     participant ML as Anomaly Engine
+    participant Redis as Redis (Queue & State DB)
     participant DB as ChromaDB
     participant Ollama as Ollama (Llama-3.2)
-    participant Copilot as Copilot Orchestrator
+    participant Copilot as Copilot Orchestrator (Daemon / CLI)
 
     NetLab->>Prom: Scrape metrics (CPU, Mem, Tx/Rx)
     ML->>Prom: Query live metrics
     Note over ML: Isolation Forest Inference & TTI Forecast
-    ML->>Copilot: Write alerts/latest_alert.json
+    ML->>Redis: Publish to 'alerts' & set 'latest_alert'
+    Redis-->>Copilot: Pub/Sub message received (Daemon) or State DB lookup (CLI)
     Copilot->>DB: Query relevant SOP runbooks
     DB-->>Copilot: Return top-2 runbooks
     Copilot->>Ollama: Generate mitigation guidance
@@ -76,14 +78,14 @@ sequenceDiagram
 
 ---
 
-## Current Progress (v1.2)
+## Current Progress (v1.3)
 
 - **Network Topology & Convergence [100%]**: Fully verified Containerlab OSPF topology. Static configuration templates, vtysh warning suppression, and dynamic neighbor adjacencies are operational.
-- **Telemetry Integration [100%]**: Docker Compose telemetry services (cAdvisor and Prometheus) are configured with correct capability privileges to capture metrics and resolve OOM event tracking errors.
-- **Predictive Engine [100%]**: Functional pipeline for telemetry export (`network_telemetry.csv`), machine learning model training, and continuous real-time forecasting.
+- **Telemetry & Queue Integration [100%]**: Docker Compose telemetry services (cAdvisor, Prometheus, and Redis) are configured to support real-time, low-latency metric collection and pub/sub message propagation.
+- **Predictive Engine [100%]**: Functional pipeline for telemetry export, machine learning model training, and continuous real-time forecasting. Polling interval optimized to 1 second for instant anomaly detection.
 - **RAG Knowledge Base [100%]**: ChromaDB vector storage populated with OSPF topology maps and Standard Operating Procedures (SOPs).
-- **Copilot Orchestration [100%]**: LLM-guided agent successfully integrates local alert payloads with ChromaDB runbook retrievals to output precise troubleshooting command recommendations.
-- **Interactive Dashboard & NOC Chaos Panel [100%]**: Fully deployed Streamlit dashboard with metric scaling, unit harmonization, full LLM context matching, and a master chaos injector reset toggle.
+- **Copilot Orchestration [100%]**: LLM-guided agent integrated with Redis Pub/Sub subscription daemon, automatically triggering RAG-based mitigation plans upon receiving live network alerts.
+- **Interactive Dashboard & NOC Chaos Panel [100%]**: Live Streamlit dashboard optimized with a 1-second auto-refresh rate, reading directly from the Redis state database and providing real-time telemetry charts and system warning banners.
 - **Security Hardening [100%]**: Implemented cryptographic model integrity checks (HMAC-SHA256), strict symlink/path traversal verification guards (`os.path.realpath`) in `populate_kb.py`, and XML-delimited prompt injection isolation constraints in `copilot_orchestrator.py` & `dashboard.py`.
 
 ---
@@ -155,7 +157,7 @@ pip install -r requirements.txt
    python3 scripts/predictive_engine.py
    ```
 
-   *(This script polls Prometheus every 5 seconds, predicts anomalies, and writes to `alerts/latest_alert.json`)*
+   *(This script polls Prometheus every 1 second, runs real-time anomaly inference, and publishes active alert payloads to Redis)*
 4. **Populate the Knowledge Base**:
 
    ```bash
@@ -163,13 +165,19 @@ pip install -r requirements.txt
    ```
 
    *(Encodes and indexes the markdown files from `knowledge/` into the local ChromaDB database `chroma_db/`)*
-5. **Execute the Copilot Assistant (CLI)**:
+5. **Execute the Copilot Assistant**:
+
+   The Copilot orchestrator can run in daemon mode listening to the Redis queue, or as a one-off CLI tool:
 
    ```bash
+   # Run in daemon mode subscribing to Redis pub/sub for real-time alerts
+   python3 scripts/copilot_orchestrator.py --daemon
+
+   # Or run as a single CLI query matching the latest active alert in Redis
    python3 scripts/copilot_orchestrator.py
    ```
 
-   *(Retrieves the latest alert, matches SOP runbooks, queries `llama3.2:3b`, and formats the mitigation action recommendations)*
+   *(Matches retrieved SOP runbooks, queries `llama3.2:3b`, and formats recommended mitigation actions)*
 
 6. **Launch the Interactive Dashboard & NOC Chaos Panel**:
 
